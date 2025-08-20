@@ -101,7 +101,7 @@ const QpiTable = () => {
     localStorage.setItem("qpiTableData", JSON.stringify(newData));
     setShowConfirmDialog(false);
     setRowToDelete(null);
-    showNotification("Zeile erfolgreich gelöscht!", "success");
+    showNotification("ASPI erfolgreich gelöscht!", "success");
   };
 
   // Annuler la suppression
@@ -340,24 +340,9 @@ const QpiTable = () => {
 
   return (
     <div className="container my-4" style={{ position: 'relative' }}>
-      {/* Flou et assombrissement du contenu principal lorsque la boîte de dialogue est ouverte */}
-      {showConfirmDialog && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          backdropFilter: 'blur(4px)',
-          zIndex: 10,
-          borderRadius: '12px'
-        }}></div>
-      )}
       
-      <h2 className="text-center mb-4" style={{ position: 'relative', zIndex: 1 }}>Qualitätskennzahlen - QPIs</h2>
 
-      <div className="d-flex justify-content-end mb-3" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="d-flex justify-content-end mb-3">
         <button 
           className="btn btn-success"
           onClick={() => setShowAddForm(true)}
@@ -366,15 +351,15 @@ const QpiTable = () => {
         </button>
       </div>
 
-      <div className="table-responsive" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="table-responsive">
         <table className="table table-bordered align-middle shadow rounded-4 overflow-hidden text-center custom-table">
           <thead>
             <tr className="qpi-header">
               <th>ASPI</th>
               <th>Beschreibung</th>
-              <th>Gesamt 2019</th>
-              <th>Gesamt 2020</th>
-              <th>Gesamt 2021</th>
+              <th>Gesamt-Ø 2019</th>
+              <th>Gesamt-Ø 2020</th>
+              <th>Gesamt-Ø 2021</th>
               <th>Gesamt-Ø 2022</th>
               <th>Gesamt-Ø 2023</th>
               <th>Gesamt-Ø 2024</th>
@@ -463,7 +448,7 @@ const QpiTable = () => {
 
       {/* Formulaire d'ajout d'un nouvel ASPI */}
       {showAddForm && (
-        <div style={{
+        <div className="modal-backdrop" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -698,7 +683,7 @@ const QpiTable = () => {
 
       {/* Boîte de dialogue de confirmation */}
       {showConfirmDialog && (
-        <div style={{
+        <div className="modal-backdrop" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -725,13 +710,22 @@ const QpiTable = () => {
               </h5>
             </div>
             <div className="modal-body p-4">
-              <p className="mb-0 fs-5">Möchten Sie diese Zeile wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</p>
+              <p className="mb-0 fs-5">Möchten Sie diesen ASPI wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</p>
             </div>
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ 
+              padding: '1rem 1.5rem', 
+              display: 'flex', 
+              justifyContent: 'center', 
+              gap: '1rem' 
+            }}>
               <button 
                 type="button" 
-                className="btn btn-secondary btn-lg me-3" 
+                className="btn btn-secondary btn-lg" 
                 onClick={cancelDelete}
+                style={{ 
+                  padding: '0.5rem 1.5rem',
+                  margin: '0.25rem'
+                }}
               >
                 <i className="fas fa-times me-1"></i> Abbrechen
               </button>
@@ -739,6 +733,10 @@ const QpiTable = () => {
                 type="button" 
                 className="btn btn-danger btn-lg" 
                 onClick={confirmDelete}
+                style={{ 
+                  padding: '0.5rem 1.5rem',
+                  margin: '0.25rem'
+                }}
               >
                 <i className="fas fa-trash me-1"></i> Löschen
               </button>
@@ -827,6 +825,9 @@ const QpiTable = () => {
         .btn-sm {
           padding: 0.25rem 0.5rem;
           font-size: 0.75rem;
+        }
+        .modal-backdrop {
+          backdrop-filter: blur(4px);
         }
       `}</style>
 
