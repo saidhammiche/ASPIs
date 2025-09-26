@@ -1,11 +1,48 @@
 import React, { useState, useEffect } from "react";
+import {
+  Table,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Card,
+  Tag,
+  Space,
+  notification,
+  Divider,
+  Row,
+  Col,
+  Statistic,
+  Tooltip,
+  Popconfirm
+} from "antd";
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CalculatorOutlined,
+  ExclamationCircleOutlined,
+  InfoCircleOutlined,
+  CheckCircleOutlined,
+  WarningOutlined,
+  BarChartOutlined,
+  CalendarOutlined,
+  PercentageOutlined,
+  TrophyOutlined,
+  SafetyCertificateOutlined,
+  HeartOutlined,
+  AlertOutlined,
+  RiseOutlined
+} from "@ant-design/icons";
 
-const QpiTable = () => {
+const { Option } = Select;
+const { TextArea } = Input;
+
+const AspiTable = () => {
   const [tableData, setTableData] = useState([]);
   const [editingRow, setEditingRow] = useState(null);
   const [editData, setEditData] = useState({});
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [rowToDelete, setRowToDelete] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAspiData, setNewAspiData] = useState({
     type: "ASPI 1",
@@ -17,7 +54,8 @@ const QpiTable = () => {
     ausfalltageKrankheit: "",
     solltageGesamt: ""
   });
-  const [notification, setNotification] = useState({ show: false, message: "", type: "" });
+  const [form] = Form.useForm();
+  const [addForm] = Form.useForm();
 
   // Charger les données depuis localStorage au montage du composant
   useEffect(() => {
@@ -57,73 +95,113 @@ const QpiTable = () => {
     }
   }, []);
 
-  // Afficher une notification
+  // Calculer la moyenne pour un ASPI spécifique
+  const calculateAverageForAspi = (aspiType) => {
+    const aspiData = tableData.find(item => item.asp === aspiType);
+    if (!aspiData) return { average: 0, count: 0 };
+
+    const validValues = aspiData.values.filter(value => {
+      if (!value || value === "-" || value === "") return false;
+      
+      if (aspiType === "ASPI 3") {
+        const numValue = parseFloat(value.replace(',', '.'));
+        return !isNaN(numValue);
+      } else {
+        const numValue = parseFloat(value.replace('%', '').replace(',', '.'));
+        return !isNaN(numValue);
+      }
+    });
+
+    if (validValues.length === 0) return { average: 0, count: 0 };
+
+    const sum = validValues.reduce((acc, value) => {
+      if (aspiType === "ASPI 3") {
+        return acc + parseFloat(value.replace(',', '.'));
+      } else {
+        return acc + parseFloat(value.replace('%', '').replace(',', '.'));
+      }
+    }, 0);
+
+    return {
+      average: (sum / validValues.length).toFixed(aspiType === "ASPI 3" ? 3 : 2),
+      count: validValues.length
+    };
+  };
+
+  // Obtenir la couleur et l'icône pour chaque ASPI
+  const getAspiConfig = (aspiType) => {
+    const configs = {
+      "ASPI 1": {
+        color: "#52c41a", // Vert
+        icon: <HeartOutlined />,
+        title: "Durchschnitt ASPI 1"
+      },
+      "ASPI 2": {
+        color: "#faad14", // Orange
+        icon: <AlertOutlined />,
+        title: "Durchschnitt ASPI 2"
+      },
+      "ASPI 3": {
+        color: "#f5222d", // Rouge
+        icon: <SafetyCertificateOutlined />,
+        title: "Durchschnitt ASPI 3"
+      },
+      "ASPI 4": {
+        color: "#1890ff", // Bleu
+        icon: <RiseOutlined />,
+        title: "Durchschnitt ASPI 4"
+      }
+    };
+    return configs[aspiType] || { color: "#3b7695", icon: <BarChartOutlined /> };
+  };
+
+  // Afficher une notification Ant Design
   const showNotification = (message, type = "info") => {
-    setNotification({ show: true, message, type });
-    setTimeout(() => {
-      setNotification({ show: false, message: "", type: "" });
-    }, 5000);
+    notification[type]({
+      message: type === "success" ? "Erfolg" : type === "error" ? "Fehler" : "Info",
+      description: message,
+      placement: "topRight",
+      duration: 5,
+    });
   };
 
   // Activer le mode édition pour une ligne
-  const handleEdit = (rowIndex) => {
-    setEditingRow(rowIndex);
-    setEditData({ ...tableData[rowIndex] });
+  const handleEdit = (record) => {
+    setEditingRow(record.id);
+    setEditData({ ...record });
+    form.setFieldsValue(record);
   };
 
   // Annuler l'édition
   const handleCancelEdit = () => {
     setEditingRow(null);
     setEditData({});
+    form.resetFields();
   };
 
   // Sauvegarder les modifications
-  const handleSaveEdit = () => {
-    const newData = [...tableData];
-    newData[editingRow] = editData;
-    setTableData(newData);
-    localStorage.setItem("qpiTableData", JSON.stringify(newData));
-    setEditingRow(null);
-    setEditData({});
-    showNotification("Änderungen erfolgreich gespeichert!", "success");
-  };
-
-  // Ouvrir la boîte de confirmation de suppression
-  const handleDeleteClick = (rowIndex) => {
-    setRowToDelete(rowIndex);
-    setShowConfirmDialog(true);
-  };
-
-  // Confirmer la suppression
-  const confirmDelete = () => {
-    const newData = tableData.filter((_, index) => index !== rowToDelete);
-    setTableData(newData);
-    localStorage.setItem("qpiTableData", JSON.stringify(newData));
-    setShowConfirmDialog(false);
-    setRowToDelete(null);
-    showNotification("ASPI erfolgreich gelöscht!", "success");
-  };
-
-  // Annuler la suppression
-  const cancelDelete = () => {
-    setShowConfirmDialog(false);
-    setRowToDelete(null);
-  };
-
-  // Gérer les changements dans les champs de texte
-  const handleInputChange = (field, value, isValueField = false, valueIndex = null) => {
-    if (isValueField && valueIndex !== null) {
-      const newValues = [...editData.values];
-      newValues[valueIndex] = value;
-      setEditData({ ...editData, values: newValues });
-    } else {
-      setEditData({ ...editData, [field]: value });
+  const handleSaveEdit = async () => {
+    try {
+      const values = await form.validateFields();
+      const newData = tableData.map(item => 
+        item.id === editingRow ? { ...item, ...values } : item
+      );
+      setTableData(newData);
+      localStorage.setItem("qpiTableData", JSON.stringify(newData));
+      setEditingRow(null);
+      setEditData({});
+      showNotification("Änderungen erfolgreich gespeichert!", "success");
+    } catch (error) {
+      console.error("Validation failed:", error);
     }
   };
 
-  // Gérer les changements dans le formulaire d'ajout
-  const handleAddFormChange = (field, value) => {
-    setNewAspiData({ ...newAspiData, [field]: value });
+  // Confirmer la suppression
+  const confirmDelete = (record) => {
+    const newData = tableData.filter(item => item.id !== record.id);
+    setTableData(newData);
+    localStorage.setItem("qpiTableData", JSON.stringify(newData));
+    showNotification("ASPI erfolgreich gelöscht!", "success");
   };
 
   // Calculer la valeur en temps réel pour l'affichage
@@ -141,700 +219,629 @@ const QpiTable = () => {
     try {
       switch (type) {
         case "ASPI 1":
-          if (!ausfallstunden || !arbeitsstunden) return "";
+          if (!ausfallstunden || !arbeitsstunden) return null;
           const ausfall1 = parseFloat(ausfallstunden.replace(',', '.'));
           const arbeits1 = parseFloat(arbeitsstunden.replace(',', '.'));
-          if (isNaN(ausfall1) || isNaN(arbeits1) || arbeits1 === 0) return "";
+          if (isNaN(ausfall1) || isNaN(arbeits1) || arbeits1 === 0) return null;
           return (ausfall1 / arbeits1 * 100).toFixed(2).replace('.', ',') + "%";
 
         case "ASPI 2":
-          if (!meldepflichtigeUnfalle || !arbeitsstunden) return "";
+          if (!meldepflichtigeUnfalle || !arbeitsstunden) return null;
           const ausfall2 = parseFloat(meldepflichtigeUnfalle.replace(',', '.'));
           const arbeits2 = parseFloat(arbeitsstunden.replace(',', '.'));
-          if (isNaN(ausfall2) || isNaN(arbeits2) || arbeits2 === 0) return "";
+          if (isNaN(ausfall2) || isNaN(arbeits2) || arbeits2 === 0) return null;
           return (ausfall2 / arbeits2 * 100).toFixed(2).replace('.', ',') + "%";
 
         case "ASPI 3":
-          if (!unfalleVerletzungen || !arbeitsstunden) return "";
+          if (!unfalleVerletzungen || !arbeitsstunden) return null;
           const unfalle = parseFloat(unfalleVerletzungen.replace(',', '.'));
           const arbeits3 = parseFloat(arbeitsstunden.replace(',', '.'));
-          if (isNaN(unfalle) || isNaN(arbeits3) || arbeits3 === 0) return "";
+          if (isNaN(unfalle) || isNaN(arbeits3) || arbeits3 === 0) return null;
           return (unfalle / arbeits3).toFixed(3).replace('.', ',');
 
         case "ASPI 4":
-          if (!ausfalltageKrankheit || !solltageGesamt) return "";
+          if (!ausfalltageKrankheit || !solltageGesamt) return null;
           const ausfalltage = parseFloat(ausfalltageKrankheit.replace(',', '.'));
           const solltage = parseFloat(solltageGesamt.replace(',', '.'));
-          if (isNaN(ausfalltage) || isNaN(solltage) || solltage === 0) return "";
+          if (isNaN(ausfalltage) || isNaN(solltage) || solltage === 0) return null;
           return (ausfalltage / solltage * 100).toFixed(2).replace('.', ',') + "%";
 
         default:
-          return "";
+          return null;
       }
     } catch (error) {
-      return "";
+      return null;
     }
   };
 
   // Ajouter un nouvel ASPI
-  const addNewAspi = () => {
-    const { 
-      type, 
-      ausfallstunden, 
-      arbeitsstunden, 
-      year,
-      meldepflichtigeUnfalle,
-      unfalleVerletzungen,
-      ausfalltageKrankheit,
-      solltageGesamt
-    } = newAspiData;
-    
-    // Validation des champs requis selon le type
-    if (!year) {
-      showNotification("Bitte geben Sie das Jahr ein!", "error");
-      return;
-    }
-
-    const yearNum = parseInt(year);
-    if (isNaN(yearNum) || yearNum < 2019) {
-      showNotification("Ungültiges Jahr! Bitte geben Sie ein Jahr ab 2019 ein.", "error");
-      return;
-    }
-
-    let aspiValue = "";
-    let notificationMessage = "";
-
-    // Calcul selon le type d'ASPI
-    switch (type) {
-      case "ASPI 1":
-        if (!ausfallstunden || !arbeitsstunden) {
-          showNotification("Bitte füllen Sie alle Felder für ASPI 1 aus!", "error");
-          return;
-        }
-        const ausfall1 = parseFloat(ausfallstunden.replace(',', '.'));
-        const arbeits1 = parseFloat(arbeitsstunden.replace(',', '.'));
-        if (isNaN(ausfall1) || isNaN(arbeits1) || arbeits1 === 0) {
-          showNotification("Ungültige Zahlenwerte für ASPI 1!", "error");
-          return;
-        }
-        aspiValue = (ausfall1 / arbeits1 * 100).toFixed(2).replace('.', ',') + "%";
-        notificationMessage = `ASPI 1 für ${year}: ${aspiValue}`;
-        break;
-
-      case "ASPI 2":
-        if (!meldepflichtigeUnfalle || !arbeitsstunden) {
-          showNotification("Bitte füllen Sie alle Felder für ASPI 2 aus!", "error");
-          return;
-        }
-        const ausfall2 = parseFloat(meldepflichtigeUnfalle.replace(',', '.'));
-        const arbeits2 = parseFloat(arbeitsstunden.replace(',', '.'));
-        if (isNaN(ausfall2) || isNaN(arbeits2) || arbeits2 === 0) {
-          showNotification("Ungültige Zahlenwerte für ASPI 2!", "error");
-          return;
-        }
-        aspiValue = (ausfall2 / arbeits2 * 100).toFixed(2).replace('.', ',') + "%";
-        notificationMessage = `ASPI 2 für ${year}: ${aspiValue}`;
-        break;
-
-      case "ASPI 3":
-        if (!unfalleVerletzungen || !arbeitsstunden) {
-          showNotification("Bitte füllen Sie alle Felder für ASPI 3 aus!", "error");
-          return;
-        }
-        const unfalle = parseFloat(unfalleVerletzungen.replace(',', '.'));
-        const arbeits3 = parseFloat(arbeitsstunden.replace(',', '.'));
-        if (isNaN(unfalle) || isNaN(arbeits3) || arbeits3 === 0) {
-          showNotification("Ungültige Zahlenwerte für ASPI 3!", "error");
-          return;
-        }
-        aspiValue = (unfalle / arbeits3).toFixed(3).replace('.', ',');
-        notificationMessage = `ASPI 3 für ${year}: ${aspiValue}`;
-        break;
-
-      case "ASPI 4":
-        if (!ausfalltageKrankheit || !solltageGesamt) {
-          showNotification("Bitte füllen Sie alle Felder für ASPI 4 aus!", "error");
-          return;
-        }
-        const ausfalltage = parseFloat(ausfalltageKrankheit.replace(',', '.'));
-        const solltage = parseFloat(solltageGesamt.replace(',', '.'));
-        if (isNaN(ausfalltage) || isNaN(solltage) || solltage === 0) {
-          showNotification("Ungültige Zahlenwerte für ASPI 4!", "error");
-          return;
-        }
-        aspiValue = (ausfalltage / solltage * 100).toFixed(2).replace('.', ',') + "%";
-        notificationMessage = `ASPI 4 für ${year}: ${aspiValue}`;
-        break;
-
-      default:
-        showNotification("Ungültiger ASPI-Typ!", "error");
-        return;
-    }
-
-    // Trouver l'index de la ligne correspondante
-    const aspiIndex = tableData.findIndex(row => row.asp === type);
-    if (aspiIndex === -1) {
-      showNotification(`${type} nicht gefunden!`, "error");
-      return;
-    }
-
-    // Trouver l'index de la colonne pour l'année
-    const yearIndex = yearNum - 2019;
-    
-    // Ajouter de nouvelles colonnes si nécessaire
-    const currentColumns = 7;
-    const newColumnsNeeded = Math.max(0, yearIndex - currentColumns + 1);
-    
-    const newData = [...tableData];
-    
-    if (newColumnsNeeded > 0) {
-      newData.forEach((row, index) => {
-        const newValues = [...row.values];
-        for (let i = 0; i < newColumnsNeeded; i++) {
-          newValues.push("");
-        }
-        newData[index] = { ...row, values: newValues };
-      });
-    }
-
-    // Mettre à jour la valeur
-    newData[aspiIndex].values[yearIndex] = aspiValue;
-    
-    // Comparaison avec l'année précédente
-    if (yearIndex > 0 && newData[aspiIndex].values[yearIndex - 1] && 
-        newData[aspiIndex].values[yearIndex - 1] !== "") {
-      const prevValueStr = newData[aspiIndex].values[yearIndex - 1];
-      let prevValue, currentValue;
-
-      if (type === "ASPI 3") {
-        prevValue = parseFloat(prevValueStr.replace(',', '.'));
-        currentValue = parseFloat(aspiValue.replace(',', '.'));
-      } else {
-        prevValue = parseFloat(prevValueStr.replace('%', '').replace(',', '.'));
-        currentValue = parseFloat(aspiValue.replace('%', '').replace(',', '.'));
-      }
+  const addNewAspi = async () => {
+    try {
+      const values = await addForm.validateFields();
+      const { 
+        type, 
+        ausfallstunden, 
+        arbeitsstunden, 
+        year,
+        meldepflichtigeUnfalle,
+        unfalleVerletzungen,
+        ausfalltageKrankheit,
+        solltageGesamt
+      } = values;
       
-      if (currentValue > prevValue) {
-        showNotification(`Warnung: ${type} für ${year} (${aspiValue}) ist höher als im Vorjahr (${newData[aspiIndex].values[yearIndex - 1]}).`, "warning");
-      } else {
-        showNotification(`Gut gemacht: ${type} für ${year} (${aspiValue}) ist niedriger als im Vorjahr (${newData[aspiIndex].values[yearIndex - 1]}).`, "success");
+      const yearNum = parseInt(year);
+      if (isNaN(yearNum) || yearNum < 2019) {
+        showNotification("Ungültiges Jahr! Bitte geben Sie ein Jahr ab 2019 ein.", "error");
+        return;
       }
-    } else {
-      showNotification(notificationMessage, "success");
-    }
 
-    setTableData(newData);
-    localStorage.setItem("qpiTableData", JSON.stringify(newData));
-    setShowAddForm(false);
-    setNewAspiData({
-      type: "ASPI 1",
-      ausfallstunden: "",
-      arbeitsstunden: "",
-      year: "",
-      meldepflichtigeUnfalle: "",
-      unfalleVerletzungen: "",
-      ausfalltageKrankheit: "",
-      solltageGesamt: ""
-    });
+      let aspiValue = "";
+      let notificationMessage = "";
+
+      // Calcul selon le type d'ASPI
+      switch (type) {
+        case "ASPI 1":
+          const ausfall1 = parseFloat(ausfallstunden.replace(',', '.'));
+          const arbeits1 = parseFloat(arbeitsstunden.replace(',', '.'));
+          if (isNaN(ausfall1) || isNaN(arbeits1) || arbeits1 === 0) {
+            showNotification("Ungültige Zahlenwerte für ASPI 1!", "error");
+            return;
+          }
+          aspiValue = (ausfall1 / arbeits1 * 100).toFixed(2).replace('.', ',') + "%";
+          notificationMessage = `ASPI 1 für ${year}: ${aspiValue}`;
+          break;
+
+        case "ASPI 2":
+          const ausfall2 = parseFloat(meldepflichtigeUnfalle.replace(',', '.'));
+          const arbeits2 = parseFloat(arbeitsstunden.replace(',', '.'));
+          if (isNaN(ausfall2) || isNaN(arbeits2) || arbeits2 === 0) {
+            showNotification("Ungültige Zahlenwerte für ASPI 2!", "error");
+            return;
+          }
+          aspiValue = (ausfall2 / arbeits2 * 100).toFixed(2).replace('.', ',') + "%";
+          notificationMessage = `ASPI 2 für ${year}: ${aspiValue}`;
+          break;
+
+        case "ASPI 3":
+          const unfalle = parseFloat(unfalleVerletzungen.replace(',', '.'));
+          const arbeits3 = parseFloat(arbeitsstunden.replace(',', '.'));
+          if (isNaN(unfalle) || isNaN(arbeits3) || arbeits3 === 0) {
+            showNotification("Ungültige Zahlenwerte für ASPI 3!", "error");
+            return;
+          }
+          aspiValue = (unfalle / arbeits3).toFixed(3).replace('.', ',');
+          notificationMessage = `ASPI 3 für ${year}: ${aspiValue}`;
+          break;
+
+        case "ASPI 4":
+          const ausfalltage = parseFloat(ausfalltageKrankheit.replace(',', '.'));
+          const solltage = parseFloat(solltageGesamt.replace(',', '.'));
+          if (isNaN(ausfalltage) || isNaN(solltage) || solltage === 0) {
+            showNotification("Ungültige Zahlenwerte für ASPI 4!", "error");
+            return;
+          }
+          aspiValue = (ausfalltage / solltage * 100).toFixed(2).replace('.', ',') + "%";
+          notificationMessage = `ASPI 4 für ${year}: ${aspiValue}`;
+          break;
+
+        default:
+          showNotification("Ungültiger ASPI-Typ!", "error");
+          return;
+      }
+
+      // Trouver l'index de la ligne correspondante
+      const aspiIndex = tableData.findIndex(row => row.asp === type);
+      if (aspiIndex === -1) {
+        showNotification(`${type} nicht gefunden!`, "error");
+        return;
+      }
+
+      // Trouver l'index de la colonne pour l'année
+      const yearIndex = yearNum - 2019;
+      
+      // Ajouter de nouvelles colonnes si nécessaire
+      const currentColumns = 7;
+      const newColumnsNeeded = Math.max(0, yearIndex - currentColumns + 1);
+      
+      const newData = [...tableData];
+      
+      if (newColumnsNeeded > 0) {
+        newData.forEach((row, index) => {
+          const newValues = [...row.values];
+          for (let i = 0; i < newColumnsNeeded; i++) {
+            newValues.push("");
+          }
+          newData[index] = { ...row, values: newValues };
+        });
+      }
+
+      // Mettre à jour la valeur
+      newData[aspiIndex].values[yearIndex] = aspiValue;
+      
+      // Comparaison avec l'année précédente
+      if (yearIndex > 0 && newData[aspiIndex].values[yearIndex - 1] && 
+          newData[aspiIndex].values[yearIndex - 1] !== "") {
+        const prevValueStr = newData[aspiIndex].values[yearIndex - 1];
+        let prevValue, currentValue;
+
+        if (type === "ASPI 3") {
+          prevValue = parseFloat(prevValueStr.replace(',', '.'));
+          currentValue = parseFloat(aspiValue.replace(',', '.'));
+        } else {
+          prevValue = parseFloat(prevValueStr.replace('%', '').replace(',', '.'));
+          currentValue = parseFloat(aspiValue.replace('%', '').replace(',', '.'));
+        }
+        
+        if (currentValue > prevValue) {
+          showNotification(`Warnung: ${type} für ${year} (${aspiValue}) ist höher als im Vorjahr (${newData[aspiIndex].values[yearIndex - 1]}).`, "warning");
+        } else {
+          showNotification(`Gut gemacht: ${type} für ${year} (${aspiValue}) ist niedriger als im Vorjahr (${newData[aspiIndex].values[yearIndex - 1]}).`, "success");
+        }
+      } else {
+        showNotification(notificationMessage, "success");
+      }
+
+      setTableData(newData);
+      localStorage.setItem("qpiTableData", JSON.stringify(newData));
+      setShowAddForm(false);
+      addForm.resetFields();
+    } catch (error) {
+      console.error("Validation failed:", error);
+    }
   };
 
-  return (
-    <div className="container my-4" style={{ position: 'relative' }}>
-      
-
-      <div className="d-flex justify-content-end mb-3">
-        <button 
-          className="btn btn-success"
-          onClick={() => setShowAddForm(true)}
-        >
-          <i className="fas fa-plus me-2"></i>Neuen ASPI Wert hinzufügen
-        </button>
-      </div>
-
-      <div className="table-responsive">
-        <table className="table table-bordered align-middle shadow rounded-4 overflow-hidden text-center custom-table">
-          <thead>
-            <tr className="qpi-header">
-              <th>ASPI</th>
-              <th>Beschreibung</th>
-              <th>Gesamt-Ø 2019</th>
-              <th>Gesamt-Ø 2020</th>
-              <th>Gesamt-Ø 2021</th>
-              <th>Gesamt-Ø 2022</th>
-              <th>Gesamt-Ø 2023</th>
-              <th>Gesamt-Ø 2024</th>
-              <th>Gesamt-Ø 2025</th>
-              {/* Ajouter des colonnes supplémentaires si nécessaire */}
-              {tableData[0]?.values.length > 7 && 
-                Array.from({ length: tableData[0].values.length - 7 }, (_, i) => (
-                  <th key={i}>{`Gesamt-Ø ${2026 + i}`}</th>
-                ))
-              }
-              <th>Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tableData.map((row, rowIndex) => (
-              <tr key={rowIndex}>
-                {editingRow === rowIndex ? (
-                  <>
-                    <td>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        value={editData.asp}
-                        onChange={(e) => handleInputChange("asp", e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        value={editData.description}
-                        onChange={(e) => handleInputChange("description", e.target.value)}
-                      />
-                    </td>
-                    {editData.values.map((value, colIndex) => (
-                      <td key={colIndex}>
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          value={value}
-                          onChange={(e) => handleInputChange("values", e.target.value, true, colIndex)}
-                        />
-                      </td>
-                    ))}
-                    <td>
-                      <div className="d-flex justify-content-center gap-2">
-                        <button className="btn btn-success btn-sm" onClick={handleSaveEdit}>
-                          <i className="fas fa-check me-1"></i> Speichern
-                        </button>
-                        <button className="btn btn-secondary btn-sm" onClick={handleCancelEdit}>
-                          <i className="fas fa-times me-1"></i> Abbrechen
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td>{row.asp}</td>
-                    <td>{row.description}</td>
-                    {row.values.map((value, colIndex) => (
-                      <td key={colIndex}>{value}</td>
-                    ))}
-                    <td>
-                      <div className="d-flex justify-content-center gap-2">
-                        <button 
-                          className="btn btn-primary btn-sm" 
-                          onClick={() => handleEdit(rowIndex)}
-                        >
-                          <i className="fas fa-edit me-1"></i> Bearbeiten
-                        </button>
-                        <button 
-                          className="btn btn-danger btn-sm" 
-                          onClick={() => handleDeleteClick(rowIndex)}
-                        >
-                          <i className="fas fa-trash me-1"></i> Löschen
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Formulaire d'ajout d'un nouvel ASPI */}
-      {showAddForm && (
-        <div className="modal-backdrop" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1050
-        }}>
-          <div className="modal-content shadow-lg border-0" style={{ 
-            backgroundColor: 'white',
-            borderRadius: '10px',
-            overflow: 'hidden',
-            boxShadow: '0 0.5rem 1.5rem rgba(0, 0, 0, 0.3)',
-            width: '90%',
-            maxWidth: '700px'
-          }}>
-            <div className="modal-header" style={{ backgroundColor: '#3b7695', color: '#fff' }}>
-              <h5 className="modal-title">
-                <i className="fas fa-plus-circle me-2"></i>
-                Neuen {newAspiData.type} Wert hinzufügen
-              </h5>
-              <button 
-                type="button" 
-                className="btn-close btn-close-white" 
-                onClick={() => setShowAddForm(false)}
-              ></button>
-            </div>
-            <div className="modal-body p-4">
-              <div className="row mb-3">
-                <div className="col-md-12">
-                  <label className="form-label fw-bold">ASPI Typ</label>
-                  <select
-                    className="form-select"
-                    value={newAspiData.type}
-                    onChange={(e) => handleAddFormChange("type", e.target.value)}
-                    style={{ borderColor: '#3b7695' }}
-                  >
-                    <option value="ASPI 1">ASPI 1</option>
-                    <option value="ASPI 2">ASPI 2</option>
-                    <option value="ASPI 3">ASPI 3</option>
-                    <option value="ASPI 4">ASPI 4</option>
-                  </select>
-                </div>
-              </div>
-
-              {newAspiData.type === "ASPI 1" && (
-                <div className="row mb-3">
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Ausfallstunden Krankheit</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.ausfallstunden}
-                      onChange={(e) => handleAddFormChange("ausfallstunden", e.target.value)}
-                      placeholder="z.B. 5000"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Arbeitsstunden gesamt</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.arbeitsstunden}
-                      onChange={(e) => handleAddFormChange("arbeitsstunden", e.target.value)}
-                      placeholder="z.B. 40000"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {newAspiData.type === "ASPI 2" && (
-                <div className="row mb-3">
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Ausfallstunden Meldepflichtige Unfälle</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.meldepflichtigeUnfalle}
-                      onChange={(e) => handleAddFormChange("meldepflichtigeUnfalle", e.target.value)}
-                      placeholder="z.B. 250"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Arbeitsstunden gesamt</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.arbeitsstunden}
-                      onChange={(e) => handleAddFormChange("arbeitsstunden", e.target.value)}
-                      placeholder="z.B. 40000"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {newAspiData.type === "ASPI 3" && (
-                <div className="row mb-3">
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Übersicht Unfälle und Verletzungen</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.unfalleVerletzungen}
-                      onChange={(e) => handleAddFormChange("unfalleVerletzungen", e.target.value)}
-                      placeholder="z.B. 3,5"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Arbeitsstunden gesamt</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.arbeitsstunden}
-                      onChange={(e) => handleAddFormChange("arbeitsstunden", e.target.value)}
-                      placeholder="z.B. 40000"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {newAspiData.type === "ASPI 4" && (
-                <div className="row mb-3">
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Ausfalltage Krankheit gesamt</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.ausfalltageKrankheit}
-                      onChange={(e) => handleAddFormChange("ausfalltageKrankheit", e.target.value)}
-                      placeholder="z.B. 1200"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold">Solltage gesamt</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newAspiData.solltageGesamt}
-                      onChange={(e) => handleAddFormChange("solltageGesamt", e.target.value)}
-                      placeholder="z.B. 8000"
-                      style={{ borderColor: '#3b7695' }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="row mb-3">
-                <div className="col-md-12">
-                  <label className="form-label fw-bold">Jahr</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={newAspiData.year}
-                    onChange={(e) => handleAddFormChange("year", e.target.value)}
-                    placeholder="z.B. 2026, 2027, 2028..."
-                    min="2019"
-                    style={{ borderColor: '#3b7695' }}
-                  />
-                  <div className="form-text">Geben Sie das Jahr für die Berechnung ein (ab 2019)</div>
-                </div>
-              </div>
-              
-              <div className="mt-3 p-3 bg-light rounded">
-                <h6 className="fw-bold" style={{ color: '#3b7695' }}>Berechnungsformel:</h6>
-                {newAspiData.type === "ASPI 1" && (
-                  <p className="mb-0">ASPI 1 = (Ausfallstunden Krankheit / Arbeitsstunden gesamt) × 100</p>
-                )}
-                {newAspiData.type === "ASPI 2" && (
-                  <p className="mb-0">ASPI 2 = (Ausfallstunden Meldepflichtige Unfälle / Arbeitsstunden gesamt) × 100</p>
-                )}
-                {newAspiData.type === "ASPI 3" && (
-                  <p className="mb-0">ASPI 3 = (Übersicht Unfälle und Verletzungen / Arbeitsstunden gesamt)</p>
-                )}
-                {newAspiData.type === "ASPI 4" && (
-                  <p className="mb-0">ASPI 4 = (Ausfalltage Krankheit gesamt / Solltage gesamt) × 100</p>
-                )}
-                
-                {calculateRealTimeValue() && (
-                  <div className="mt-2 p-2 bg-white rounded border">
-                    <strong style={{ color: '#3b7695' }}>Aktuelle Berechnung:</strong><br />
-                    {newAspiData.type === "ASPI 1" && (
-                      <span>({newAspiData.ausfallstunden} / {newAspiData.arbeitsstunden}) × 100 = {calculateRealTimeValue()}</span>
-                    )}
-                    {newAspiData.type === "ASPI 2" && (
-                      <span>({newAspiData.meldepflichtigeUnfalle} / {newAspiData.arbeitsstunden}) × 100 = {calculateRealTimeValue()}</span>
-                    )}
-                    {newAspiData.type === "ASPI 3" && (
-                      <span>({newAspiData.unfalleVerletzungen} / {newAspiData.arbeitsstunden}) = {calculateRealTimeValue()}</span>
-                    )}
-                    {newAspiData.type === "ASPI 4" && (
-                      <span>({newAspiData.ausfalltageKrankheit} / {newAspiData.solltageGesamt}) × 100 = {calculateRealTimeValue()}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="modal-footer" style={{ borderTop: '1px solid #dee2e6', padding: '1rem' }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary me-3" 
-                onClick={() => setShowAddForm(false)}
-                style={{ padding: '0.5rem 1.5rem' }}
-              >
-                <i className="fas fa-times me-1"></i> Abbrechen
-              </button>
-              <button 
-                type="button" 
-                className="btn text-white" 
-                onClick={addNewAspi}
-                style={{ 
-                  backgroundColor: '#3b7695', 
-                  borderColor: '#3b7695',
-                  padding: '0.5rem 1.5rem'
-                }}
-              >
-                <i className="fas fa-calculator me-1"></i> Berechnen und Hinzufügen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Boîte de dialogue de confirmation */}
-      {showConfirmDialog && (
-        <div className="modal-backdrop" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1060
-        }}>
-          <div className="modal-content shadow-lg border-0" style={{ 
-            backgroundColor: 'white',
-            borderRadius: '10px',
-            overflow: 'hidden',
-            boxShadow: '0 0.5rem 1.5rem rgba(0, 0, 0, 0.3)',
-            width: '90%',
-            maxWidth: '500px'
-          }}>
-            <div className="modal-header" style={{ backgroundColor: '#3b7695', color: '#fff' }}>
-              <h5 className="modal-title">
-                <i className="fas fa-exclamation-triangle me-2"></i>
-                Bestätigung erforderlich
-              </h5>
-            </div>
-            <div className="modal-body p-4">
-              <p className="mb-0 fs-5">Möchten Sie diesen ASPI wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</p>
-            </div>
-            <div className="modal-footer" style={{ 
-              padding: '1rem 1.5rem', 
-              display: 'flex', 
-              justifyContent: 'center', 
-              gap: '1rem' 
+  // Colonnes pour le tableau Ant Design
+  const columns = [
+    {
+      title: 'ASPI',
+      dataIndex: 'asp',
+      key: 'asp',
+      width: 100,
+      render: (text, record) => {
+        const config = getAspiConfig(text);
+        return (
+          editingRow === record.id ? (
+            <Form.Item name="asp" style={{ margin: 0 }}>
+              <Input />
+            </Form.Item>
+          ) : (
+            <Tag color={config.color} style={{ 
+              fontSize: '14px', 
+              padding: '4px 8px',
+              color: 'white',
+              border: 'none'
             }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary btn-lg" 
-                onClick={cancelDelete}
-                style={{ 
-                  padding: '0.5rem 1.5rem',
-                  margin: '0.25rem'
-                }}
+              {text}
+            </Tag>
+          )
+        );
+      },
+    },
+    {
+      title: 'Beschreibung',
+      dataIndex: 'description',
+      key: 'description',
+      render: (text, record) => (
+        editingRow === record.id ? (
+          <Form.Item name="description" style={{ margin: 0 }}>
+            <TextArea rows={2} />
+          </Form.Item>
+        ) : (
+          text
+        )
+      ),
+    },
+    // Colonnes pour les années
+    ...Array.from({ length: Math.max(7, tableData[0]?.values?.length || 0) }, (_, i) => ({
+      title: `Gesamt-Ø ${2019 + i}`,
+      dataIndex: 'values',
+      key: `year-${2019 + i}`,
+      width: 120,
+      render: (values, record) => (
+        editingRow === record.id ? (
+          <Form.Item name={['values', i]} style={{ margin: 0 }}>
+            <Input />
+          </Form.Item>
+        ) : (
+          values[i] || '-'
+        )
+      ),
+    })),
+    {
+      title: 'Aktionen',
+      key: 'actions',
+      width: 120,
+      render: (_, record) => (
+        <Space size="small">
+          {editingRow === record.id ? (
+            <>
+              <Button 
+                type="primary" 
+                icon={<CheckCircleOutlined />} 
+                onClick={handleSaveEdit}
+                size="small"
+                style={{ backgroundColor: '#3b7695', borderColor: '#3b7695' }}
+              />
+              <Button 
+                icon={<WarningOutlined />} 
+                onClick={handleCancelEdit}
+                size="small"
+              />
+            </>
+          ) : (
+            <>
+              <Tooltip title="Bearbeiten">
+                <Button 
+                  type="primary" 
+                  icon={<EditOutlined />} 
+                  onClick={() => handleEdit(record)}
+                  size="small"
+                  style={{ backgroundColor: '#3b7695', borderColor: '#3b7695' }}
+                />
+              </Tooltip>
+              <Tooltip title="Löschen">
+                <Popconfirm
+                  title="ASPI löschen"
+                  description="Sind Sie sicher, dass Sie diesen ASPI löschen möchten?"
+                  onConfirm={() => confirmDelete(record)}
+                  okText="Ja"
+                  cancelText="Nein"
+                  icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
+                >
+                  <Button 
+                    danger 
+                    icon={<DeleteOutlined />} 
+                    size="small"
+                  />
+                </Popconfirm>
+              </Tooltip>
+            </>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
+  const realTimeValue = calculateRealTimeValue();
+
+  // Calculer les moyennes pour tous les ASPI
+  const aspiAverages = [
+    { type: "ASPI 1", ...calculateAverageForAspi("ASPI 1") },
+    { type: "ASPI 2", ...calculateAverageForAspi("ASPI 2") },
+    { type: "ASPI 3", ...calculateAverageForAspi("ASPI 3") },
+    { type: "ASPI 4", ...calculateAverageForAspi("ASPI 4") }
+  ];
+
+  return (
+    <div style={{ padding: '24px', background: '#f0f2f5', minHeight: '100vh' }}>
+      {/* Partie 1: En-tête avec statistiques et bouton d'ajout */}
+      <Card 
+        style={{ 
+          marginBottom: 24, 
+          borderRadius: 12,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          border: `2px solid #3b7695`
+        }}
+      >
+        <Row gutter={16} align="middle">
+          <Col xs={24} md={16}>
+            <h1 style={{ 
+              margin: 0, 
+              color: '#3b7695',
+              fontSize: '28px',
+              fontWeight: 600
+            }}>
+              ASPI Management Dashboard
+            </h1>
+            <p style={{ 
+              color: '#666',
+              fontSize: '16px',
+              margin: '8px 0 0 0'
+            }}>
+              Verwalten und überwachen Sie Ihre Arbeitsunfallstatistiken
+            </p>
+          </Col>
+          <Col xs={24} md={8} style={{ textAlign: 'right' }}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              size="large"
+              onClick={() => setShowAddForm(true)}
+              style={{
+                backgroundColor: '#3b7695',
+                borderColor: '#3b7695',
+                borderRadius: '8px',
+                height: '48px',
+                padding: '0 24px',
+                fontSize: '16px',
+                fontWeight: 600
+              }}
+            >
+              Neuen ASPI Wert hinzufügen
+            </Button>
+          </Col>
+        </Row>
+
+        <Divider style={{ borderColor: '#3b7695' }} />
+
+        <Row gutter={16}>
+          <Col xs={24} sm={6}>
+            <Statistic
+              title="Total ASPI Types"
+              value={tableData.length}
+              prefix={<BarChartOutlined style={{ color: '#3b7695' }} />}
+              valueStyle={{ color: '#3b7695' }}
+            />
+          </Col>
+          <Col xs={24} sm={6}>
+            <Statistic
+              title="Aktive Jahre"
+              value={Math.max(7, tableData[0]?.values?.length || 0)}
+              suffix="Jahre"
+              prefix={<CalendarOutlined style={{ color: '#3b7695' }} />}
+              valueStyle={{ color: '#3b7695' }}
+            />
+          </Col>
+          
+          {/* Moyennes pour chaque ASPI */}
+          {aspiAverages.map((aspi, index) => {
+            const config = getAspiConfig(aspi.type);
+            return (
+              <Col xs={24} sm={6} key={aspi.type}>
+                <Statistic
+                  title={config.title}
+                  value={aspi.average}
+                  suffix={aspi.type !== "ASPI 3" ? "%" : ""}
+                  prefix={React.cloneElement(config.icon, { style: { color: config.color } })}
+                  valueStyle={{ color: config.color }}
+                />
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '-8px' }}>
+                  {aspi.count} Werte
+                </div>
+              </Col>
+            );
+          })}
+        </Row>
+      </Card>
+
+      {/* Partie 2: Tableau des données */}
+      <Card
+        title={
+          <span style={{ fontSize: '20px', fontWeight: 600, color: '#3b7695' }}>
+            <CalculatorOutlined style={{ marginRight: '8px', color: '#3b7695' }} />
+            ASPI Übersichtstabelle
+          </span>
+        }
+        style={{
+          borderRadius: 12,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          border: `2px solid #3b7695`
+        }}
+        extra={
+          <Tooltip title="Daten werden automatisch im Browser gespeichert">
+            <InfoCircleOutlined style={{ color: '#3b7695', fontSize: '16px' }} />
+          </Tooltip>
+        }
+      >
+        <Form form={form} component={false}>
+          <Table
+            columns={columns}
+            dataSource={tableData.map(item => ({ ...item, key: item.id }))}
+            pagination={false}
+            scroll={{ x: 1200 }}
+            bordered
+            size="middle"
+          />
+        </Form>
+      </Card>
+
+      {/* Modal d'ajout d'un nouvel ASPI */}
+      <Modal
+        title={
+          <span style={{ fontSize: '20px', fontWeight: 600, color: '#3b7695' }}>
+            <PlusOutlined style={{ marginRight: '8px', color: '#3b7695' }} />
+            Neuen {newAspiData.type} Wert hinzufügen
+          </span>
+        }
+        open={showAddForm}
+        onCancel={() => {
+          setShowAddForm(false);
+          addForm.resetFields();
+        }}
+        footer={null}
+        width={700}
+        style={{ borderRadius: '12px' }}
+      >
+        <Form
+          form={addForm}
+          layout="vertical"
+          onValuesChange={(changedValues, allValues) => {
+            setNewAspiData(allValues);
+          }}
+        >
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="type"
+                label="ASPI Typ"
+                rules={[{ required: true, message: 'Bitte wählen Sie einen ASPI Typ' }]}
               >
-                <i className="fas fa-times me-1"></i> Abbrechen
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-danger btn-lg" 
-                onClick={confirmDelete}
-                style={{ 
-                  padding: '0.5rem 1.5rem',
-                  margin: '0.25rem'
-                }}
+                <Select size="large" style={{ borderColor: '#3b7695' }}>
+                  <Option value="ASPI 1">ASPI 1</Option>
+                  <Option value="ASPI 2">ASPI 2</Option>
+                  <Option value="ASPI 3">ASPI 3</Option>
+                  <Option value="ASPI 4">ASPI 4</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item noStyle shouldUpdate={(prev, current) => prev.type !== current.type}>
+            {({ getFieldValue }) => {
+              const type = getFieldValue('type');
+              const config = getAspiConfig(type);
+              
+              return (
+                <>
+                  {type === "ASPI 1" && (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="ausfallstunden"
+                          label="Ausfallstunden Krankheit"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 5000" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="arbeitsstunden"
+                          label="Arbeitsstunden gesamt"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 40000" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
+
+                  {type === "ASPI 2" && (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="meldepflichtigeUnfalle"
+                          label="Ausfallstunden Meldepflichtige Unfälle"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 250" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="arbeitsstunden"
+                          label="Arbeitsstunden gesamt"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 40000" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
+
+                  {type === "ASPI 3" && (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="unfalleVerletzungen"
+                          label="Übersicht Unfälle und Verletzungen"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 3,5" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="arbeitsstunden"
+                          label="Arbeitsstunden gesamt"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 40000" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
+
+                  {type === "ASPI 4" && (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="ausfalltageKrankheit"
+                          label="Ausfalltage Krankheit gesamt"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 1200" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="solltageGesamt"
+                          label="Solltage gesamt"
+                          rules={[{ required: true, message: 'Dieses Feld ist erforderlich' }]}
+                        >
+                          <Input placeholder="z.B. 8000" size="large" style={{ borderColor: config.color }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
+                </>
+              );
+            }}
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="year"
+                label="Jahr"
+                rules={[
+                  { required: true, message: 'Bitte geben Sie das Jahr ein' },
+                  { pattern: /^(201[9-9]|20[2-9][0-9])$/, message: 'Ungültiges Jahr (ab 2019)' }
+                ]}
               >
-                <i className="fas fa-trash me-1"></i> Löschen
-              </button>
-            </div>
+                <Input placeholder="z.B. 2026, 2027, 2028..." size="large" style={{ borderColor: '#3b7695' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {realTimeValue && (
+            <Card 
+              size="small" 
+              style={{ 
+                marginBottom: 16,
+                borderColor: '#3b7695',
+                background: '#f0f8ff'
+              }}
+            >
+              <Statistic
+                title="Aktuelle Berechnung"
+                value={realTimeValue}
+                valueStyle={{ color: '#3b7695', fontSize: '24px' }}
+                prefix={<CalculatorOutlined style={{ color: '#3b7695' }} />}
+              />
+            </Card>
+          )}
+
+          <Divider style={{ borderColor: '#3b7695' }} />
+
+          <div style={{ textAlign: 'right' }}>
+            <Button 
+              onClick={() => {
+                setShowAddForm(false);
+                addForm.resetFields();
+              }}
+              style={{ marginRight: 8 }}
+              size="large"
+            >
+              Abbrechen
+            </Button>
+            <Button 
+              type="primary" 
+              onClick={addNewAspi}
+              icon={<CalculatorOutlined />}
+              size="large"
+              style={{
+                backgroundColor: '#3b7695',
+                borderColor: '#3b7695'
+              }}
+            >
+              Berechnen und Hinzufügen
+            </Button>
           </div>
-        </div>
-      )}
-
-      {/* Notification centrée avec icônes professionnelles */}
-      {notification.show && (
-        <div style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 1070,
-          minWidth: '400px',
-          maxWidth: '90%'
-        }}>
-          <div className={`alert alert-${notification.type} alert-dismissible fade show d-flex align-items-center shadow-lg`} style={{
-            borderRadius: '10px',
-            border: 'none'
-          }}>
-            {notification.type === 'success' && (
-              <i className="fas fa-check-circle fa-2x me-3"></i>
-            )}
-            {notification.type === 'warning' && (
-              <i className="fas fa-exclamation-triangle fa-2x me-3"></i>
-            )}
-            {notification.type === 'error' && (
-              <i className="fas fa-times-circle fa-2x me-3"></i>
-            )}
-            {notification.type === 'info' && (
-              <i className="fas fa-info-circle fa-2x me-3"></i>
-            )}
-            <div className="flex-grow-1">
-              {notification.message}
-            </div>
-            <button 
-              type="button" 
-              className="btn-close" 
-              onClick={() => setNotification({ show: false, message: "", type: "" })}
-            ></button>
-          </div>
-        </div>
-      )}
-
-      {/* Style interne */}
-      <style jsx>{`
-        .qpi-header th {
-          background: linear-gradient(135deg, #3b7695, #2a5c7c) !important;
-          color: #fff !important;
-          font-weight: 600;
-          border: none;
-          padding: 12px 8px;
-        }
-        .custom-table {
-          border-collapse: separate;
-          border-spacing: 0;
-          border: 1px solid #dee2e6;
-        }
-        .custom-table th, 
-        .custom-table td {
-          border: 1px solid #dee2e6;
-          vertical-align: middle;
-        }
-        .custom-table tbody tr:hover {
-          background-color: rgba(59, 118, 149, 0.05);
-        }
-        input.form-control {
-          text-align: center;
-          padding: 0.25rem;
-          font-size: 0.875rem;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-        }
-        input.form-control:focus {
-          border-color: #3b7695;
-          box-shadow: 0 0 0 0.2rem rgba(59, 118, 149, 0.25);
-        }
-        .btn {
-          border-radius: 4px;
-          font-weight: 500;
-          transition: all 0.2s ease;
-        }
-        .btn-sm {
-          padding: 0.25rem 0.5rem;
-          font-size: 0.75rem;
-        }
-        .modal-backdrop {
-          backdrop-filter: blur(4px);
-        }
-      `}</style>
-
-      {/* Inclure Font Awesome pour les icônes */}
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+        </Form>
+      </Modal>
     </div>
   );
 };
 
-export default QpiTable;
+export default AspiTable;
